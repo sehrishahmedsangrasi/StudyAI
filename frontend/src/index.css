@@ -1,0 +1,93 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0C0C0C;
+  --bg2: #141414;
+  --bg3: #1C1C1C;
+  --border: #FFFFFF;
+  --shadow: #FFFFFF;
+  --lime: #C8FF00;
+  --coral: #FF6B6B;
+  --teal: #6BFFE8;
+  --text: #F5F5F5;
+  --muted: #555555;
+  --card-shadow: 4px 4px 0px #FFFFFF;
+  --card-shadow-sm: 2px 2px 0px #FFFFFF;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+h1, h2, h3, .display { font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.05em; }
+.syne { font-family: 'Syne', sans-serif; }
+
+/* Neubrutalism card */
+.nb-card {
+  background: var(--bg2);
+  border: 2px solid var(--border);
+  box-shadow: var(--card-shadow);
+  transition: box-shadow 0.1s, transform 0.1s;
+}
+.nb-card:hover { box-shadow: var(--card-shadow-sm); transform: translate(2px, 2px); }
+
+/* Neubrutalism button */
+.nb-btn {
+  border: 2px solid var(--border);
+  box-shadow: var(--card-shadow);
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  cursor: pointer;
+  transition: box-shadow 0.1s, transform 0.1s;
+  letter-spacing: 0.05em;
+}
+.nb-btn:hover { box-shadow: var(--card-shadow-sm); transform: translate(2px, 2px); }
+.nb-btn:active { box-shadow: 0px 0px 0px #FFFFFF; transform: translate(4px, 4px); }
+.nb-btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; box-shadow: var(--card-shadow); }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: #333; border-radius: 0; }
+
+/* Glitch animation */
+@keyframes glitch {
+  0% { text-shadow: 2px 0 var(--lime), -2px 0 var(--coral); }
+  20% { text-shadow: -2px 0 var(--lime), 2px 0 var(--coral); clip-path: inset(20% 0 60% 0); }
+  40% { text-shadow: 2px 0 var(--teal), -2px 0 var(--lime); clip-path: inset(60% 0 20% 0); }
+  60% { text-shadow: -2px 0 var(--coral), 2px 0 var(--teal); }
+  80% { text-shadow: 2px 0 var(--lime), -2px 0 var(--coral); clip-path: inset(0); }
+  100% { text-shadow: none; clip-path: inset(0); }
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes tilt {
+  0%, 100% { transform: rotate(-0.5deg); }
+  50% { transform: rotate(0.5deg); }
+}
+
+.fade-up { animation: fadeUp 0.4s ease forwards; }
+.glitch { animation: glitch 0.4s ease forwards; }
