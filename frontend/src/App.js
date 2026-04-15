@@ -231,7 +231,7 @@ export default function App() {
       const res = await axios.post(`${API}/generate`, {
         file_ids: selectedFiles, difficulty,
         notes: wantNotes, quiz: wantQuiz, flashcards: wantFlash,
-      }, { headers: authHeaders(), timeout: 180000 });
+      }, { headers: authHeaders(), timeout: 300000 });
       const r = { ...res.data, difficulty };
       setResult(r);
       localStorage.setItem('studyai_last_result', JSON.stringify(r));

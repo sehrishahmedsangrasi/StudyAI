@@ -152,10 +152,10 @@ class RAGPipeline:
         )
         
         self.llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash",
+            model="gemini-1.5-flash",
             google_api_key=api_key,
             temperature=0.2,
-            max_output_tokens=4096,
+            max_output_tokens=2048,
         )
         self.file_store = FileStore(self.embeddings, user_id)
 
