@@ -3,6 +3,7 @@ uvicorn[standard]
 langchain
 langchain-google-genai
 langchain-community
+langchain-huggingface
 faiss-cpu
 pypdf
 python-multipart
