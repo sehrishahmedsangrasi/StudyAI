@@ -12,8 +12,8 @@ TOKEN_EXPIRE_DAYS = 30
 
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
-GOOGLE_REDIRECT_URI = "http://localhost:8000/auth/google/callback"
-
+# Change this line in auth.py
+GOOGLE_REDIRECT_URI = os.getenv("FRONTEND_URL", "http://localhost:8000/auth/google/callback")
 
 def create_token(user_id: str) -> str:
     payload = {

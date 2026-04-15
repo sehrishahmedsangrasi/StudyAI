@@ -20,10 +20,11 @@ app = FastAPI(title="StudyAI Generator", version="3.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000",                  # local dev
+        "http://localhost:3000",  
+        "http://127.0.0.1:3000",                # local dev
         "https://study-ai-inky-omega.vercel.app",            # production
     ],
-    allow_credentials=False, allow_methods=["*"], allow_headers=["*"],
+    allow_credentials=True, allow_methods=["*"], allow_headers=["*"],
 )
 
 init_db()
@@ -56,7 +57,12 @@ def root():
 # ── Auth ──────────────────────────────────────────────────────────────────────
 @app.get("/auth/google")
 def google_login():
-    return {"url": get_google_auth_url()}
+    # 1. Get the official Google URL from your auth.py logic
+    target_url = get_google_auth_url()
+    
+    # 2. Instead of returning JSON, return a RedirectResponse
+    # This forces the browser to navigate to Google immediately
+    return RedirectResponse(url=target_url)
 
 
 @app.get("/auth/google/callback")

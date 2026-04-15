@@ -27,9 +27,9 @@ const Noise = () => (
 function LoginScreen() {
   const [hovered, setHovered] = useState(false);
 
-  const handleGoogleLogin = async () => {
-    const res = await axios.get(`${API}/auth/google`);
-    window.location.href = res.data.url;
+  const handleGoogleLogin = () => {
+    // Direct navigation bypasses CORS data-reading restrictions
+    window.location.href = `${API}/auth/google`;
   };
 
   return (
