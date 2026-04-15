@@ -282,8 +282,8 @@ STORAGE_DIR.mkdir(exist_ok=True)
 
 # Models ordered by priority: best uptime/quality first
 GEMINI_MODELS = [
-    "gemini-2.5-flash-preview-05-20",  # Best: latest reasoning, high uptime
-    "gemini-2.0-flash",                 # Stable: solid fallback
+    "gemini-2.5-flash",  # Best: latest reasoning, high uptime
+    "gemini-3-flash-preview",                 # Stable: solid fallback
     "gemini-flash-latest",              # Alias: auto-points to newest stable flash
 ]
 
