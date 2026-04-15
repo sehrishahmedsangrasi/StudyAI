@@ -1,5 +1,5 @@
 // import React, { useState, useRef } from 'react';
-// import { Upload, Key, FileText, Zap } from 'lucide-react';
+// import { Upload, FileText, Zap } from 'lucide-react';
 // import axios from 'axios';
 
 // const API = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000';
@@ -59,7 +59,6 @@
 // const DIFF_COLORS = { Easy: '#43e8b0', Medium: '#f5a623', Hard: '#ff6584' };
 
 // export default function UploadPanel({ onGenerated, onLoading }) {
-//   const [apiKey, setApiKey] = useState('');
 //   const [file, setFile] = useState(null);
 //   const [difficulty, setDifficulty] = useState('Medium');
 //   const [dragging, setDragging] = useState(false);
@@ -81,10 +80,6 @@
 
 //     if (!file) {
 //       setError('Please upload a file first.');
-//       return;
-//     }
-//     if (!apiKey) {
-//       setError('Please enter your Gemini API key.');
 //       return;
 //     }
 //     if (!token) {
@@ -164,22 +159,6 @@
 //       <div style={styles.title}>AI Study Generator</div>
 //       <div style={styles.subtitle}>Upload a lecture transcript → get notes, quiz & flashcards instantly</div>
 
-//       {/* API Key */}
-//       <div style={{ marginBottom: '24px' }}>
-//         <label style={styles.label}><Key size={12} style={{ marginRight: 6 }} />Gemini API Key</label>
-//         <input
-//           style={styles.input}
-//           type="password"
-//           placeholder="AIza..."
-//           value={apiKey}
-//           onChange={e => setApiKey(e.target.value)}
-//           onFocus={e => e.target.style.borderColor = '#6c63ff'}
-//           onBlur={e => e.target.style.borderColor = '#2a2a3a'}
-//         />
-//         <div style={{ color: '#9090a8', fontSize: '0.78rem', marginTop: 6 }}>
-//           Free key from <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" style={{ color: '#6c63ff' }}>Google AI Studio</a>
-//         </div>
-//       </div>
 
 //       {/* Dropzone */}
 //       <div style={{ marginBottom: '24px' }}>
@@ -219,8 +198,8 @@
 
 //       {/* Generate Button */}
 //       <button
-//         style={styles.btn(!apiKey || !file || loading)}
-//         disabled={!apiKey || !file || loading}
+//         style={styles.btn(!file || loading)}
+//         disabled={!file || loading}
 //         onClick={handleGenerate}
 //       >
 //         {loading ? (
@@ -258,11 +237,10 @@
 // }
 
 import React, { useState, useRef } from 'react';
-import { Upload, Key, FileText, Zap } from 'lucide-react';
+import { Upload, FileText, Zap } from 'lucide-react';  // Removed Key
 import axios from 'axios';
 
 const API = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000';
-
 
 const styles = {
   panel: {
@@ -319,8 +297,7 @@ const styles = {
 const DIFF_COLORS = { Easy: '#43e8b0', Medium: '#f5a623', Hard: '#ff6584' };
 
 export default function UploadPanel({ onGenerated, onLoading }) {
-  const [apiKey, setApiKey] = useState('');
-  const [file, setFile] = useState(null);
+  const [file, setFile] = useState(null);  // Removed apiKey
   const [difficulty, setDifficulty] = useState('Medium');
   const [dragging, setDragging] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -336,42 +313,84 @@ export default function UploadPanel({ onGenerated, onLoading }) {
   };
 
   const handleGenerate = async () => {
-    if (!apiKey || !file) return;
-    setLoading(true); setError(''); setUploadMsg(''); setStep('Uploading transcript...');
+    const token = localStorage.getItem('studyai_token');
+
+    if (!file) {
+      setError('Please upload a file first.');
+      return;
+    }
+    // Removed apiKey validation
+    if (!token) {
+      setError('Please login with Google first.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setUploadMsg('');
+    setStep('Uploading transcript...');
     onLoading(true);
 
     try {
-      // Step 1: Upload & ingest — direct to backend
+      // Step 1: Upload & ingest
       const form = new FormData();
       form.append('file', file);
-      form.append('api_key', apiKey);
-      const up = await axios.post(`${API}/upload`, form, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+
+      const up = await axios.post(`${API}/files/upload`, form, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'Authorization': `Bearer ${token}`,
+        },
         timeout: 60000,
       });
-      setUploadMsg(up.data.message);
-      setStep('Generating notes, quiz & flashcards...');
 
-      // Step 2: Generate all — direct to backend
-      const gen = await axios.post(`${API}/generate/all`, {
-        api_key: apiKey,
-        difficulty
-      }, { timeout: 120000 });
+      const fileId = up.data.file_id;
+      console.log('Upload response:', up.data);
+      console.log('File ID:', fileId);
+      if (!fileId) throw new Error('Upload succeeded but no file_id returned.');
+
+      setUploadMsg('File uploaded successfully!');
+      setStep('Generating notes, quiz & flashcards... (this may take 2-3 min)');
+
+      // Step 2: Generate
+      const freshToken = localStorage.getItem('studyai_token');
+      console.log('Token for generate:', freshToken ? 'present' : 'MISSING');
+
+      const gen = await axios.post(`${API}/generate`, {
+        file_ids: [fileId],
+        difficulty: difficulty,
+        notes: true,
+        quiz: true,
+        flashcards: true,
+      }, {
+        headers: { 'Authorization': `Bearer ${freshToken}` },
+        timeout: 300000, // 5 min
+      });
 
       onGenerated({
         notes: gen.data.notes,
         quiz: gen.data.quiz,
         flashcards: gen.data.flashcards,
-        difficulty
+        difficulty,
       });
+
     } catch (err) {
-      if (err.code === 'ERR_NETWORK' || err.code === 'ECONNREFUSED') {
-        setError('Cannot reach backend. Make sure uvicorn is running on port 8000.');
+      console.error('Generation Error:', err);
+      if (err.code === 'ERR_NETWORK' || err.code === 'ECONNABORTED') {
+        setError('Cannot reach server or request timed out. Try again in a moment.');
+      } else if (err.response?.status === 401) {
+        setError('Session expired. Please log in again.');
+      } else if (err.response?.status === 400) {
+        setError(`Invalid request: ${err.response?.data?.detail || 'Check your input'}`);
+      } else if (err.response?.status === 422) {
+        setError('Invalid request data. Check your file format.');
       } else {
         setError(err.response?.data?.detail || err.message || 'Something went wrong.');
       }
     } finally {
-      setLoading(false); onLoading(false); setStep('');
+      setLoading(false);
+      onLoading(false);
+      setStep('');
     }
   };
 
@@ -380,22 +399,7 @@ export default function UploadPanel({ onGenerated, onLoading }) {
       <div style={styles.title}>AI Study Generator</div>
       <div style={styles.subtitle}>Upload a lecture transcript → get notes, quiz & flashcards instantly</div>
 
-      {/* API Key */}
-      <div style={{ marginBottom: '24px' }}>
-        <label style={styles.label}><Key size={12} style={{ marginRight: 6 }} />Gemini API Key</label>
-        <input
-          style={styles.input}
-          type="password"
-          placeholder="AIza..."
-          value={apiKey}
-          onChange={e => setApiKey(e.target.value)}
-          onFocus={e => e.target.style.borderColor = '#6c63ff'}
-          onBlur={e => e.target.style.borderColor = '#2a2a3a'}
-        />
-        <div style={{ color: '#9090a8', fontSize: '0.78rem', marginTop: 6 }}>
-          Free key from <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" style={{ color: '#6c63ff' }}>Google AI Studio</a>
-        </div>
-      </div>
+      {/* API Key section REMOVED */}
 
       {/* Dropzone */}
       <div style={{ marginBottom: '24px' }}>
@@ -433,10 +437,10 @@ export default function UploadPanel({ onGenerated, onLoading }) {
         </div>
       </div>
 
-      {/* Generate Button */}
+      {/* Generate Button - Updated disabled condition */}
       <button
-        style={styles.btn(!apiKey || !file || loading)}
-        disabled={!apiKey || !file || loading}
+        style={styles.btn(!file || loading)}  // Removed !apiKey
+        disabled={!file || loading}            // Removed !apiKey
         onClick={handleGenerate}
       >
         {loading ? (
