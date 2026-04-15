@@ -1,7 +1,7 @@
 import os, json, re, time
 from pathlib import Path
 from typing import Optional
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEndpointEmbeddings
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_community.vectorstores import FAISS
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -143,13 +143,14 @@ class FileStore:
 
 
 class RAGPipeline:
-    def __init__(self, api_key: str, user_id: str):
+    def __init__(self, api_key: str, user_id: str, hf_api_key: str):
         os.environ["GOOGLE_API_KEY"] = api_key
-        self.embeddings = HuggingFaceEmbeddings(
-            model_name="all-MiniLM-L6-v2",
-            model_kwargs={"device": "cpu"},
-            encode_kwargs={"normalize_embeddings": True},
+        
+        self.embeddings = HuggingFaceEndpointEmbeddings(
+            model="sentence-transformers/all-MiniLM-L6-v2",
+            huggingfacehub_api_token=hf_api_key,
         )
+        
         self.llm = ChatGoogleGenerativeAI(
             model="gemini-2.5-flash",
             google_api_key=api_key,

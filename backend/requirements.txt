@@ -3,9 +3,9 @@ uvicorn[standard]
 langchain
 langchain-google-genai
 langchain-community
-langchain-huggingface
 langchain-text-splitters
 langchain-core
+langchain-huggingface
 faiss-cpu
 pypdf
 python-multipart
@@ -13,5 +13,5 @@ google-generativeai
 PyJWT
 passlib[bcrypt]
 sqlalchemy
-sentence-transformers
 httpx
+python-dotenv

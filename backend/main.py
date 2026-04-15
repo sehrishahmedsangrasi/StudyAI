@@ -25,12 +25,13 @@ app.add_middleware(
 init_db()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+HF_API_KEY = os.getenv("HF_API_KEY", "")
 pipelines: dict[str, RAGPipeline] = {}
 
 
 def get_pipeline(user_id: str) -> RAGPipeline:
     if user_id not in pipelines:
-        pipelines[user_id] = RAGPipeline(api_key=GEMINI_API_KEY, user_id=user_id)
+        pipelines[user_id] = RAGPipeline(api_key=GEMINI_API_KEY, user_id=user_id, hf_api_key=HF_API_KEY)  # ← add hf_api_key
     return pipelines[user_id]
 
 
