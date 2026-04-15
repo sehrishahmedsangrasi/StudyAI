@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 
-const API = 'http://127.0.0.1:8000';
+const API = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000';
 const authHeaders = () => ({ Authorization: `Bearer ${localStorage.getItem('studyai_token')}` });
 
 export default function HistoryDrawer({ open, history, onLoad, onDelete }) {
