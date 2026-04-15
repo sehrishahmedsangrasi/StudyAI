@@ -18,7 +18,11 @@ from auth import create_token, get_current_user_id, get_google_auth_url, exchang
 
 app = FastAPI(title="StudyAI Generator", version="3.1.0")
 app.add_middleware(
-    CORSMiddleware, allow_origins=["*"],
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",                  # local dev
+        "https://study-ai-inky-omega.vercel.app/",            # production
+    ],
     allow_credentials=False, allow_methods=["*"], allow_headers=["*"],
 )
 
@@ -65,8 +69,8 @@ async def google_callback(code: str):
         avatar=user_info.get("picture", ""),
     )
     token = create_token(user["id"])
-    return RedirectResponse(url=f"http://localhost:3000/auth?token={token}&name={user['name']}&avatar={user['avatar']}&email={user['email']}")
-
+    FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    return RedirectResponse(url=f"{FRONTEND_URL}/auth?token={token}&name={user['name']}&avatar={user['avatar']}&email={user['email']}")
 
 @app.get("/auth/me")
 def get_me(user_id: str = Depends(get_current_user_id)):
