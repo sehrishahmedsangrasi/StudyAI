@@ -8,7 +8,7 @@ import HistoryDrawer from './components/HistoryDrawer';
 // Use process.env for Create React App projects
 const API = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000';
 
-console.log('=== API URL ===', process.env.REACT_APP_API_URL);
+console.log('=== =API URL ===', process.env.REACT_APP_API_URL);
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
 const getToken = () => localStorage.getItem('studyai_token');
