@@ -21,7 +21,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",                  # local dev
-        "https://study-ai-inky-omega.vercel.app/",            # production
+        "https://study-ai-inky-omega.vercel.app",            # production
     ],
     allow_credentials=False, allow_methods=["*"], allow_headers=["*"],
 )
