@@ -1,6 +1,6 @@
+
 # import os, json, re, time
 # from pathlib import Path
-# from typing import Optional
 # from langchain_huggingface import HuggingFaceEndpointEmbeddings
 # from langchain_google_genai import ChatGoogleGenerativeAI
 # from langchain_community.vectorstores import FAISS
@@ -12,6 +12,13 @@
 
 # STORAGE_DIR = Path("./storage")
 # STORAGE_DIR.mkdir(exist_ok=True)
+
+# # Models ordered by priority: best uptime/quality first
+# GEMINI_MODELS = [
+#     "gemini-2.5-flash",  # Best: latest reasoning, high uptime
+#     "gemini-3-flash-preview",                 # Stable: solid fallback
+#     "gemini-flash-latest",              # Alias: auto-points to newest stable flash
+# ]
 
 
 # def clean_json(text: str) -> str:
@@ -145,19 +152,24 @@
 # class RAGPipeline:
 #     def __init__(self, api_key: str, user_id: str, hf_api_key: str):
 #         os.environ["GOOGLE_API_KEY"] = api_key
-        
+
+#         self._api_key = api_key
+#         self._model_index = 0  # Tracks which model is currently working
+
 #         self.embeddings = HuggingFaceEndpointEmbeddings(
 #             model="sentence-transformers/all-MiniLM-L6-v2",
 #             huggingfacehub_api_token=hf_api_key,
 #         )
-        
-#         self.llm = ChatGoogleGenerativeAI(
-#             model="gemini-1.5-flash",
-#             google_api_key=api_key,
+
+#         self.file_store = FileStore(self.embeddings, user_id)
+
+#     def _get_llm(self, model_name: str) -> ChatGoogleGenerativeAI:
+#         return ChatGoogleGenerativeAI(
+#             model=model_name,
+#             google_api_key=self._api_key,
 #             temperature=0.2,
 #             max_output_tokens=2048,
 #         )
-#         self.file_store = FileStore(self.embeddings, user_id)
 
 #     def add_file(self, file_id, filename, text):
 #         return self.file_store.add_file(file_id, filename, text)
@@ -169,44 +181,85 @@
 #         return self.file_store.list_files()
 
 #     def _generate_single(self, context, difficulty, requested) -> dict:
-#         chain = PromptTemplate(
-#             input_variables=["context", "difficulty", "requested"],
-#             template=COMBINED_PROMPT
-#         ) | self.llm | StrOutputParser()
+#         last_error = None
 
-#         raw = chain.invoke({
-#             "context": context,
-#             "difficulty": difficulty,
-#             "requested": requested,
-#         })
+#         # Start from the last known-working model index
+#         models_to_try = list(enumerate(GEMINI_MODELS))[self._model_index:]
 
-#         cleaned = clean_json(raw)
+#         for i, model_name in models_to_try:
+#             try:
+#                 print(f"[RAG] Trying model: {model_name}")
+#                 llm = self._get_llm(model_name)
 
-#         # Attempt 1: direct parse
-#         try:
-#             return json.loads(cleaned)
-#         except json.JSONDecodeError:
-#             pass
+#                 chain = PromptTemplate(
+#                     input_variables=["context", "difficulty", "requested"],
+#                     template=COMBINED_PROMPT
+#                 ) | llm | StrOutputParser()
 
-#         # Attempt 2: repair truncated JSON
-#         try:
-#             repaired = repair_json(cleaned)
-#             return json.loads(repaired)
-#         except json.JSONDecodeError:
-#             pass
+#                 raw = chain.invoke({
+#                     "context": context,
+#                     "difficulty": difficulty,
+#                     "requested": requested,
+#                 })
 
-#         # Attempt 3: ask Gemini to fix its own broken output
-#         try:
-#             fix_chain = self.llm | StrOutputParser()
-#             fixed_raw = fix_chain.invoke(
-#                 f"The following is broken JSON. Fix it so it is valid and return ONLY "
-#                 f"the corrected JSON object, no markdown, no explanation, nothing else:\n\n{cleaned[:3000]}"
-#             )
-#             return json.loads(clean_json(fixed_raw))
-#         except Exception as e:
-#             raise ValueError(
-#                 f"Could not parse AI response: {e}\n\nRaw (first 300 chars):\n{cleaned[:300]}"
-#             )
+#                 # If we succeeded with a fallback model, promote it for future calls
+#                 if i != self._model_index:
+#                     print(f"[RAG] Promoting model index to {i} ({model_name})")
+#                     self._model_index = i
+
+#                 cleaned = clean_json(raw)
+
+#                 # Attempt 1: direct parse
+#                 try:
+#                     return json.loads(cleaned)
+#                 except json.JSONDecodeError:
+#                     pass
+
+#                 # Attempt 2: repair truncated JSON
+#                 try:
+#                     repaired = repair_json(cleaned)
+#                     return json.loads(repaired)
+#                 except json.JSONDecodeError:
+#                     pass
+
+#                 # Attempt 3: ask Gemini to fix its own broken output
+#                 try:
+#                     fix_llm = self._get_llm(model_name)
+#                     fixed_raw = (fix_llm | StrOutputParser()).invoke(
+#                         f"The following is broken JSON. Fix it so it is valid and return ONLY "
+#                         f"the corrected JSON object, no markdown, no explanation:\n\n{cleaned[:3000]}"
+#                     )
+#                     return json.loads(clean_json(fixed_raw))
+#                 except Exception as e:
+#                     raise ValueError(
+#                         f"Could not parse AI response: {e}\n\nRaw (first 300 chars):\n{cleaned[:300]}"
+#                     )
+
+#             except ValueError:
+#                 # Re-raise parse errors — no point trying another model for these
+#                 raise
+
+#             except Exception as e:
+#                 err = str(e)
+
+#                 if "429" in err or "RESOURCE_EXHAUSTED" in err:
+#                     # Quota hit — don't try other models, just raise immediately
+#                     raise ValueError("Quota limit reached. Wait 1 minute and retry.")
+
+#                 if "404" in err or "NOT_FOUND" in err or "deprecated" in err.lower() or "not supported" in err.lower():
+#                     # Model unavailable — try the next one
+#                     print(f"[RAG] Model '{model_name}' unavailable (404/deprecated), trying next...")
+#                     last_error = e
+#                     continue
+
+#                 # Any other error — raise immediately, don't silently swallow
+#                 raise
+
+#         # All models exhausted
+#         raise ValueError(
+#             f"All Gemini models failed. Last error: {last_error}\n"
+#             f"Models tried: {', '.join(m for _, m in models_to_try)}"
+#         )
 
 #     def _with_retry(self, fn, max_attempts=3) -> dict:
 #         for attempt in range(max_attempts):
@@ -227,8 +280,8 @@
 #                  generate_notes=True, generate_quiz=True, generate_flashcards=True) -> dict:
 
 #         parts = []
-#         if generate_notes:     parts.append("NOTES")
-#         if generate_quiz:      parts.append("QUIZ")
+#         if generate_notes:      parts.append("NOTES")
+#         if generate_quiz:       parts.append("QUIZ")
 #         if generate_flashcards: parts.append("FLASHCARDS")
 #         if not parts:
 #             raise ValueError("Select at least one output.")
@@ -269,7 +322,7 @@
 import os, json, re, time
 from pathlib import Path
 from langchain_huggingface import HuggingFaceEndpointEmbeddings
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_groq import ChatGroq
 from langchain_community.vectorstores import FAISS
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
@@ -280,11 +333,11 @@ from prompts import COMBINED_PROMPT
 STORAGE_DIR = Path("./storage")
 STORAGE_DIR.mkdir(exist_ok=True)
 
-# Models ordered by priority: best uptime/quality first
-GEMINI_MODELS = [
-    "gemini-2.5-flash",  # Best: latest reasoning, high uptime
-    "gemini-3-flash-preview",                 # Stable: solid fallback
-    "gemini-flash-latest",              # Alias: auto-points to newest stable flash
+# Groq free tier models ordered by capability
+GROQ_MODELS = [
+    "llama-3.3-70b-versatile",   # best quality, 6000 RPM free — primary
+    "llama-3.1-70b-versatile",   # fallback
+    "llama3-70b-8192",           # last resort
 ]
 
 
@@ -417,11 +470,9 @@ class FileStore:
 
 
 class RAGPipeline:
-    def __init__(self, api_key: str, user_id: str, hf_api_key: str):
-        os.environ["GOOGLE_API_KEY"] = api_key
-
-        self._api_key = api_key
-        self._model_index = 0  # Tracks which model is currently working
+    def __init__(self, api_key: str, user_id: str, hf_api_key: str, groq_api_key: str):
+        self._groq_api_key = groq_api_key
+        self._model_index = 0
 
         self.embeddings = HuggingFaceEndpointEmbeddings(
             model="sentence-transformers/all-MiniLM-L6-v2",
@@ -430,12 +481,12 @@ class RAGPipeline:
 
         self.file_store = FileStore(self.embeddings, user_id)
 
-    def _get_llm(self, model_name: str) -> ChatGoogleGenerativeAI:
-        return ChatGoogleGenerativeAI(
+    def _get_llm(self, model_name: str) -> ChatGroq:
+        return ChatGroq(
             model=model_name,
-            google_api_key=self._api_key,
+            api_key=self._groq_api_key,
             temperature=0.2,
-            max_output_tokens=2048,
+            max_tokens=8192,
         )
 
     def add_file(self, file_id, filename, text):
@@ -449,9 +500,7 @@ class RAGPipeline:
 
     def _generate_single(self, context, difficulty, requested) -> dict:
         last_error = None
-
-        # Start from the last known-working model index
-        models_to_try = list(enumerate(GEMINI_MODELS))[self._model_index:]
+        models_to_try = list(enumerate(GROQ_MODELS))[self._model_index:]
 
         for i, model_name in models_to_try:
             try:
@@ -469,9 +518,8 @@ class RAGPipeline:
                     "requested": requested,
                 })
 
-                # If we succeeded with a fallback model, promote it for future calls
                 if i != self._model_index:
-                    print(f"[RAG] Promoting model index to {i} ({model_name})")
+                    print(f"[RAG] Promoting to model index {i} ({model_name})")
                     self._model_index = i
 
                 cleaned = clean_json(raw)
@@ -484,17 +532,14 @@ class RAGPipeline:
 
                 # Attempt 2: repair truncated JSON
                 try:
-                    repaired = repair_json(cleaned)
-                    return json.loads(repaired)
+                    return json.loads(repair_json(cleaned))
                 except json.JSONDecodeError:
                     pass
 
-                # Attempt 3: ask Gemini to fix its own broken output
+                # Attempt 3: ask model to fix its own output
                 try:
-                    fix_llm = self._get_llm(model_name)
-                    fixed_raw = (fix_llm | StrOutputParser()).invoke(
-                        f"The following is broken JSON. Fix it so it is valid and return ONLY "
-                        f"the corrected JSON object, no markdown, no explanation:\n\n{cleaned[:3000]}"
+                    fixed_raw = (self._get_llm(model_name) | StrOutputParser()).invoke(
+                        f"Fix this broken JSON, return ONLY valid JSON, no markdown:\n\n{cleaned[:3000]}"
                     )
                     return json.loads(clean_json(fixed_raw))
                 except Exception as e:
@@ -503,45 +548,38 @@ class RAGPipeline:
                     )
 
             except ValueError:
-                # Re-raise parse errors — no point trying another model for these
                 raise
 
             except Exception as e:
                 err = str(e)
 
-                if "429" in err or "RESOURCE_EXHAUSTED" in err:
-                    # Quota hit — don't try other models, just raise immediately
-                    raise ValueError("Quota limit reached. Wait 1 minute and retry.")
-
                 if "404" in err or "NOT_FOUND" in err or "deprecated" in err.lower() or "not supported" in err.lower():
-                    # Model unavailable — try the next one
-                    print(f"[RAG] Model '{model_name}' unavailable (404/deprecated), trying next...")
+                    print(f"[RAG] Model '{model_name}' unavailable, trying next...")
                     last_error = e
                     continue
 
-                # Any other error — raise immediately, don't silently swallow
+                if "429" in err or "RATE_LIMIT" in err or "rate_limit" in err.lower():
+                    print(f"[RAG] Rate limit hit on '{model_name}', trying next model...")
+                    last_error = e
+                    continue
+
                 raise
 
-        # All models exhausted
         raise ValueError(
-            f"All Gemini models failed. Last error: {last_error}\n"
+            f"All Groq models failed. Last error: {last_error}\n"
             f"Models tried: {', '.join(m for _, m in models_to_try)}"
         )
 
-    def _with_retry(self, fn, max_attempts=3) -> dict:
+    def _with_retry(self, fn, max_attempts=2) -> dict:
         for attempt in range(max_attempts):
             try:
                 return fn()
+            except ValueError:
+                raise
             except Exception as e:
-                err = str(e)
-                if "429" in err or "RESOURCE_EXHAUSTED" in err:
-                    if attempt < max_attempts - 1:
-                        time.sleep(35 * (attempt + 1))
-                        continue
-                    raise ValueError("Quota limit reached. Wait 1 minute and retry.")
                 if attempt == max_attempts - 1:
                     raise
-                time.sleep(5)
+                time.sleep(3)
 
     def generate(self, file_ids, difficulty="Medium",
                  generate_notes=True, generate_quiz=True, generate_flashcards=True) -> dict:
@@ -559,29 +597,8 @@ class RAGPipeline:
         if not context.strip():
             raise ValueError("No content found for selected files.")
 
-        result = {}
-
-        # Split notes into its own call to avoid truncation when all 3 are requested
-        if generate_notes and (generate_quiz or generate_flashcards):
-            notes_result = self._with_retry(
-                lambda: self._generate_single(context, difficulty, "NOTES")
-            )
-            result.update(notes_result)
-
-            remaining = []
-            if generate_quiz:       remaining.append("QUIZ")
-            if generate_flashcards: remaining.append("FLASHCARDS")
-
-            time.sleep(2)
-            rest_result = self._with_retry(
-                lambda: self._generate_single(context, difficulty, ", ".join(remaining))
-            )
-            result.update(rest_result)
-
-        else:
-            # Single call: only 1 or 2 outputs, no notes split needed
-            result = self._with_retry(
-                lambda: self._generate_single(context, difficulty, ", ".join(parts))
-            )
-
-        return result
+        # Single call for everything — Groq's limits are high enough to handle it
+        print(f"[RAG] Generating {', '.join(parts)}...")
+        return self._with_retry(
+            lambda: self._generate_single(context, difficulty, ", ".join(parts))
+        )
