@@ -5,7 +5,7 @@ import QuizPanel from './components/QuizPanel';
 import FlashcardsPanel from './components/FlashcardsPanel';
 import HistoryDrawer from './components/HistoryDrawer';
 
-const API = 'http://127.0.0.1:8000';
+const API = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
 const getToken = () => localStorage.getItem('studyai_token');
