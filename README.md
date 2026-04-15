@@ -122,7 +122,7 @@ quiz-generator/
 | Backend | FastAPI + Python | Free |
 | RAG Framework | LangChain | Free |
 | Vector DB | FAISS (local) | Free |
-| Embeddings | Google embedding-001 | Free |
+| Embeddings | sentence-transformers/all-MiniLM-L6-v2 | Free |
 | LLM | Gemini 1.5 Flash | Free* |
 | PDF Parsing | PyPDF | Free |
 
